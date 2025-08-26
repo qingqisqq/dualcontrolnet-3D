@@ -7,5 +7,6 @@ The Geo Loss is written in -ldm-models-diffusion-ddpm
 This repository is based on [ControlNet](https://github.com/lllyasviel/ControlNet), which provided the foundation for our implementation
 
 mapbox api key and openstreetmap needed for data
+
 model ckpt(7-8 GB) needed for experiments 
 
