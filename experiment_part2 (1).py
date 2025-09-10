@@ -278,7 +278,7 @@ def main():
     epoch = '2'
     step = '22913'
     model = create_model('./models/cldm_v15.yaml').cpu()
-
+    #Replace with trained model with your name
     model.load_state_dict(load_state_dict('./lightning_logs/version_'+version+'/checkpoints/epoch='+epoch+'-step='+step+'.ckpt', location='cuda'))
 
     model = model.cuda()
