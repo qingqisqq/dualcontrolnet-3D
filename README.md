@@ -102,3 +102,13 @@ scale: The strength of unconditional guidance.
 
 resume: If set to True, the script will skip already generated images, allowing for a seamless restart.
 
+#### Step 5: Image Evaluation metrics
+The core metrics are calculated using a separate Python script (metrics_evaluation.py). This file will read the generated images and compare them against real images or compare between the generated land use and satellite images to compute the reported values.
+
+Run the evaluation script. The script will output the calculated values for each metric.
+
+Note: The Fréchet Inception Distance (FID) metric specifically requires a set of real remote sensing images as input to fairly evaluate the overall image realism and generation quality.
+
+Review Logs and Analysis
+
+Some result and training logs, including the output for orlando cosine consistency loss, can be found in train-postprocess Jupyter Notebook.
