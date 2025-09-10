@@ -11,10 +11,10 @@ model ckpt(7-8 GB) needed for experiments
 
 Trained with A100 GPU
 
-##Preparation
+## Preparation
 Before you begin, please ensure you have completed the following steps:
 
-1. Python Environment and Library Installation
+### 1. Python Environment and Library Installation
 This project requires a specific set of libraries to run. Use the following command to install all the necessary dependencies at once:
 
 pip install gradio==3.16.2 \
@@ -45,7 +45,7 @@ pip install gradio==3.16.2 \
     lit
 
 
-2. Model and Data File Setup
+### 2. Model and Data File Setup
 Please ensure your project folder structure matches the relative paths defined in the scripts. This project requires a model checkpoint file (.ckpt) of 7-8 GB to run the experiments.
 
 Additionally, since this project involves geospatial data, you will need the following:
@@ -59,20 +59,20 @@ The Geo Loss implementation is located in the -ldm-models-diffusion-ddpm module.
 Project Workflow
 The core workflow of this project includes data preparation, training, and generation.
 
-Step 1: Navigate to the Project Directory
+#### Step 1: Navigate to the Project Directory
 First, use the cd command in your terminal to navigate to the project's root directory. 
 
 cd dualcontrolnet3d
 
-Step 2: Data Preparation
+#### Step 2: Data Preparation
 See data-download notebook. Make sure you have the necessary scripts to acquire and preprocess data from Mapbox and OpenStreetMap.
 
 Then use clean_data_with_threshold.py to clean the data.
 
-Step 3: Model Training
+#### Step 3: Model Training
 See first few blocks in train-postprocess notebook. Training requires an A100 GPU for optimal performance. During training, the model is optimized by combining Geo Loss and Consistency Loss.
 
-Step 4: Image Generation
+#### Step 4: Image Generation
 Use the generate_images.py script to batch-generate images. The script will automatically load the model, process the input images, and generate outputs based on the prompts in your CSV file.
 
 python generate_images.py
