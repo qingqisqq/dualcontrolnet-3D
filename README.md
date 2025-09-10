@@ -40,6 +40,13 @@ pip install gradio==3.16.2 \
     basicsr==1.4.2 \
     cmake \
     lit
+    
+2.use the command cd dualcontrolnet3d to locate the project directory
 
-2. data 3. train 4.generate 5. postprocess
+3. data
+4.
+5. train
+4.generate
+5. postprocess
+
 
