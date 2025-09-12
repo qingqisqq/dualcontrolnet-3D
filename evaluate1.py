@@ -7,17 +7,31 @@ from PIL import Image
 from torch.utils.data import Dataset, DataLoader
 import random
 import shutil
+from scipy.linalg import sqrtm
+
+# --- FID Calculation Utilities ---
 
 class ImageDataset(Dataset):
+    """
+    A custom PyTorch Dataset for loading images from a directory.
+    
+    Attributes:
+        path (str): The directory path containing the images.
+        files (list): A list of image filenames found in the directory.
+        transform (callable, optional): Optional transform to be applied on a sample.
+    """
     def __init__(self, path, transform=None):
         self.path = path
+        # Filter for common image file extensions
         self.files = [f for f in os.listdir(path) if f.endswith(('.png', '.jpg', '.jpeg'))]
         self.transform = transform
         
     def __len__(self):
+        """Returns the number of images in the dataset."""
         return len(self.files)
     
     def __getitem__(self, idx):
+        """Loads and returns an image, applying the specified transform."""
         img_path = os.path.join(self.path, self.files[idx])
         img = Image.open(img_path).convert('RGB')
         if self.transform:
@@ -25,137 +39,164 @@ class ImageDataset(Dataset):
         return img
 
 def extract_features(dataloader, model, device):
+    """
+    Extracts features from a dataset using a pre-trained model.
+
+    Args:
+        dataloader (DataLoader): PyTorch DataLoader for the dataset.
+        model (torch.nn.Module): The feature extraction model (e.g., InceptionV3).
+        device (torch.device): The device (CPU or GPU) to run the computation on.
+
+    Returns:
+        np.ndarray: A concatenated array of features for all images.
+    """
+    # Set the model to evaluation mode
     model.eval()
     features = []
     
     with torch.no_grad():
         for batch in dataloader:
+            # Move the batch to the specified device
             batch = batch.to(device)
+            # Pass the batch through the model to get features
             feat = model(batch)
             features.append(feat.cpu().numpy())
     
+    # Concatenate features from all batches into a single numpy array
     features = np.concatenate(features, axis=0)
     return features
 
 def calculate_fid(real_features, gen_features):
-    # 计算均值
+    """
+    Calculates the Frechet Inception Distance (FID) between two sets of features.
+
+    The FID score measures the distance between the feature distributions of real
+    and generated images. A lower FID score indicates higher quality and similarity.
+
+    Args:
+        real_features (np.ndarray): Features extracted from real images.
+        gen_features (np.ndarray): Features extracted from generated images.
+
+    Returns:
+        float: The calculated FID score.
+    """
+    # Calculate the mean of the features
     mu1 = np.mean(real_features, axis=0)
     mu2 = np.mean(gen_features, axis=0)
     
-    # 计算协方差矩阵
+    # Calculate the covariance matrices
     sigma1 = np.cov(real_features, rowvar=False)
     sigma2 = np.cov(gen_features, rowvar=False)
     
-    # 计算均值差的平方
-    diff = mu1 - mu2
+    # Calculate the squared difference between the means
+    sum_sq_diff = np.sum((mu1 - mu2)**2)
     
-    # 添加一个小的正则化项到对角线
-    eps = 1e-6
-    sigma1 = sigma1 + np.eye(sigma1.shape[0]) * eps
-    sigma2 = sigma2 + np.eye(sigma2.shape[0]) * eps
-    
-    # 计算协方差矩阵的平方根
-    covmean_sq = sigma1.dot(sigma2)
-    
-    # 确保矩阵是正定的
-    if np.iscomplexobj(covmean_sq):
-        print("警告：协方差矩阵包含复数，使用实部")
-        covmean_sq = covmean_sq.real
-    
-    # 计算矩阵平方根的迹
-    # 使用特征值分解来计算
-    eigvals = np.linalg.eigvals(covmean_sq)
-    eigvals = np.maximum(eigvals, 0)  # 确保特征值为正
-    covmean_trace = np.sum(np.sqrt(eigvals))
-    
-    # 计算FID
-    fid = np.sum(diff**2) + np.trace(sigma1) + np.trace(sigma2) - 2 * covmean_trace
+    # Calculate the square root of the product of the covariance matrices
+    try:
+        covmean = sqrtm(sigma1 @ sigma2)
+        # Check for imaginary components and take the real part
+        if np.iscomplexobj(covmean):
+            print("Warning: Covariance matrix square root has imaginary components. Using real part.")
+            covmean = covmean.real
+    except ValueError as e:
+        print(f"Error calculating matrix square root: {e}")
+        return np.inf
+
+    # Calculate the FID score using the formula
+    fid = sum_sq_diff + np.trace(sigma1) + np.trace(sigma2) - 2 * np.trace(covmean)
     
     return fid
 
-# 主函数
+# --- Main Execution Flow ---
 def main():
-    # 使用您指定的文件夹路径
+    """
+    Main function to orchestrate the FID calculation process.
+    It prepares the data, extracts features, and computes the FID score.
+    """
+    # Define the paths for the real and generated image folders
     real_merged_dir = "./merged6_real_images"
     gen_merged_dir = "./merged66_generated_images"
     
-    # 创建临时目录进行平衡处理
+    # Create temporary directories to ensure balanced datasets
     temp_real_dir = "./temp_real_images"
     temp_gen_dir = "./temp_gen_images"
     
     try:
-        # 创建临时目录
+        print("Preparing datasets for FID calculation...")
+        # Create temporary directories
         os.makedirs(temp_real_dir, exist_ok=True)
         os.makedirs(temp_gen_dir, exist_ok=True)
         
-        # 获取两个文件夹中的图片数量
+        # Get all image files from both directories
         real_images = [f for f in os.listdir(real_merged_dir) if f.endswith(('.png', '.jpg', '.jpeg'))]
         gen_images = [f for f in os.listdir(gen_merged_dir) if f.endswith(('.png', '.jpg', '.jpeg'))]
         
-        # 确定最小数量
+        # Determine the minimum number of images to ensure equal sample size
         min_count = min(len(real_images), len(gen_images))
         
-        # 随机选择相同数量的图片
+        # Randomly select a balanced set of images from each folder
         selected_real = random.sample(real_images, min_count)
         selected_gen = random.sample(gen_images, min_count)
         
-        # 复制到临时目录
+        # Copy the selected images to the temporary directories
         for img in selected_real:
             shutil.copy(os.path.join(real_merged_dir, img), os.path.join(temp_real_dir, img))
         
         for img in selected_gen:
             shutil.copy(os.path.join(gen_merged_dir, img), os.path.join(temp_gen_dir, img))
         
-        print(f"已平衡两个文件夹的图片数量至 {min_count} 张")
+        print(f"Successfully balanced the number of images to {min_count} per folder.")
         
-        # 设置设备
+        # Set the device for computation (GPU if available, otherwise CPU)
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         
-        # 加载预训练的Inception模型
-        model = models.inception_v3(pretrained=True, transform_input=False)
-        # 移除最后的分类层
+        # Load a pre-trained InceptionV3 model, a common choice for FID
+        model = models.inception_v3(weights=models.Inception_V3_Weights.IMAGENET1K_V1, transform_input=False)
+        # Remove the final classification layer to use the model for feature extraction
         model.fc = torch.nn.Identity()
         model = model.to(device)
         
-        # 设置图像转换
+        # Define the image transformations required by the InceptionV3 model
         transform = transforms.Compose([
             transforms.Resize((299, 299)),
             transforms.ToTensor(),
             transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
         ])
         
-        # 创建数据集和数据加载器
+        # Create datasets and dataloaders for both image sets
         real_dataset = ImageDataset(temp_real_dir, transform)
         gen_dataset = ImageDataset(temp_gen_dir, transform)
         
         real_loader = DataLoader(real_dataset, batch_size=32, shuffle=False, num_workers=4)
         gen_loader = DataLoader(gen_dataset, batch_size=32, shuffle=False, num_workers=4)
         
-        # 记录开始时间
+        # Record the start time to measure performance
         start_time = time.time()
         
-        # 提取特征
-        print("提取真实图像特征...")
+        # Extract features from both real and generated images
+        print("Extracting features from real images...")
         real_features = extract_features(real_loader, model, device)
-        print("提取生成图像特征...")
+        print("Extracting features from generated images...")
         gen_features = extract_features(gen_loader, model, device)
         
-        # 计算FID
-        print("计算FID值...")
+        # Calculate the final FID score
+        print("Calculating FID score...")
         fid_value = calculate_fid(real_features, gen_features)
         
-        # 计算耗时
+        # Calculate and display the total computation time
         elapsed_time = time.time() - start_time
         
-        print(f"FID值: {fid_value}")
-        print(f"计算耗时: {elapsed_time:.2f} 秒")
+        print(f"\nFinal FID Score: {fid_value:.4f}")
+        print(f"Total computation time: {elapsed_time:.2f} seconds")
     
     finally:
-        # 清理临时目录
+        # Clean up by removing the temporary directories
+        print("\nCleaning up temporary directories...")
         if os.path.exists(temp_real_dir):
             shutil.rmtree(temp_real_dir)
         if os.path.exists(temp_gen_dir):
             shutil.rmtree(temp_gen_dir)
+        print("Cleanup complete.")
 
 if __name__ == "__main__":
     main()
