@@ -82,16 +82,10 @@ def evaluate_land_use_image(image_path, color_similarity_threshold=30):
     }
 
 def extract_idx(filename):
-    """
-    从文件名中提取 idx
-    
-    支持的文件名格式：
-    - osm_map_10075_28.4763_-81.536797.png
-    - osm_generated_12613_41.8615_-88.052194_0.png
-    """
+   
     patterns = [
-        r'_(\d+)_\d+\.\d+_-?\d+\.\d+',  # 匹配下划线后的第一个数字
-        r'(\d+)_\d+\.\d+_-?\d+\.\d+'   # 备选模式
+        r'_(\d+)_\d+\.\d+_-?\d+\.\d+',  #match each pair
+        r'(\d+)_\d+\.\d+_-?\d+\.\d+'   
     ]
     
     for pattern in patterns:
